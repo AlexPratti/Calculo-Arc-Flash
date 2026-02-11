@@ -10,7 +10,7 @@ import os
 import hashlib
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Cálculo de Arc Flash", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="Cálculo de Energia Incidente", page_icon="⚡", layout="wide")
 
 # ==============================================================================
 # SISTEMA DE AUTENTICAÇÃO E USUÁRIOS
