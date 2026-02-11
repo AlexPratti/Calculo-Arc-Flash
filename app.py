@@ -10,7 +10,6 @@ import os
 import hashlib
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-# Mudamos o título da aba do navegador aqui
 st.set_page_config(page_title="Cálculo de Arc Flash", page_icon="⚡", layout="wide")
 
 # ==============================================================================
@@ -63,10 +62,22 @@ def register_user(username, name, password):
         "name": name,
         "password": hash_password(password),
         "role": "user",
-        "approved": False # Padrão: precisa de aprovação
+        "approved": False 
     }
     save_users(users)
     return True, "Cadastro realizado! Aguarde aprovação do administrador."
+
+def change_password(username, current_pass, new_pass):
+    users = load_users()
+    if username in users:
+        # Verifica se a senha atual está correta
+        if users[username]['password'] == hash_password(current_pass):
+            users[username]['password'] = hash_password(new_pass)
+            save_users(users)
+            return True, "Senha alterada com sucesso!"
+        else:
+            return False, "A senha atual está incorreta."
+    return False, "Erro ao encontrar usuário."
 
 # ==============================================================================
 # APLICAÇÃO PRINCIPAL (CÁLCULO)
@@ -85,7 +96,7 @@ def gerar_pdf(dados):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 14)
-    pdf.cell(0, 10, ft('Memorial de Cálculo - Arc Flash'), 0, 1, 'C') # Título PDF Atualizado
+    pdf.cell(0, 10, ft('Memorial de Cálculo - Arc Flash'), 0, 1, 'C') 
     pdf.set_font("Arial", 'I', 9)
     pdf.cell(0, 6, 'Conforme NBR 17227 / IEEE 1584', 0, 1, 'C')
     pdf.ln(4)
@@ -144,7 +155,7 @@ def gerar_pdf(dados):
 # --- GERADOR DE WORD ---
 def gerar_word(dados):
     doc = Document()
-    head = doc.add_heading('Memorial - Arc Flash', 0) # Título Word Atualizado
+    head = doc.add_heading('Memorial - Arc Flash', 0) 
     head.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_local = doc.add_paragraph()
     p_local.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -176,7 +187,6 @@ def gerar_word(dados):
     return buffer
 
 def main_app_logic():
-    # Título Principal Atualizado
     st.title("⚡ Cálculo de Arc Flash")
     st.markdown(f"Usuário Logado: **{st.session_state['user_name']}**")
     st.markdown("---")
@@ -383,6 +393,20 @@ if not st.session_state['logged_in']:
 else:
     # App Principal Logado
     st.sidebar.success(f"Olá, {st.session_state['user_name']}")
+    
+    # --- ÁREA DE ALTERAR SENHA (NOVO) ---
+    with st.sidebar.expander("🔑 Alterar Minha Senha"):
+        current_p = st.text_input("Senha Atual", type="password", key="p_curr")
+        new_p = st.text_input("Nova Senha", type="password", key="p_new")
+        if st.button("Atualizar Senha"):
+            if current_p and new_p:
+                ok, msg = change_password(st.session_state['user_login'], current_p, new_p)
+                if ok: st.success(msg)
+                else: st.error(msg)
+            else:
+                st.warning("Preencha os campos.")
+    # -------------------------------------
+
     if st.session_state['user_role'] == 'admin':
         admin_panel()
     
