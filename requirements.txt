@@ -1,3 +1,5 @@
 streamlit
 fpdf
 python-docx
+numpy
+reportlab
