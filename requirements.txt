@@ -1,5 +1,6 @@
 streamlit
 fpdf
 python-docx
+supabase
 numpy
 reportlab
