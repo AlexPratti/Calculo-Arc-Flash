@@ -76,11 +76,15 @@ if st.session_state['auth'] is None:
                 try:
                     res = supabase.table("usuarios").select("*").eq("email", u).eq("senha", p).execute()
                     if res.data:
+                        # CORREÇÃO: Acessando o primeiro item da lista retornada
                         user_found = res.data[0] 
+                        
                         if user_found['status'] == 'ativo':
+                            # TRATAMENTO DE DATA UTC
                             data_str = user_found['data_aprovacao'].replace('Z', '+00:00')
                             data_ap = datetime.fromisoformat(data_str).astimezone(timezone.utc)
                             agora_utc = datetime.now(timezone.utc)
+                            
                             if agora_utc > data_ap + timedelta(days=365):
                                 st.error("Seu acesso expirou (validade de 1 ano atingida).")
                             else:
@@ -103,7 +107,6 @@ if st.session_state['auth'] is None:
             except:
                 st.error("Erro ao enviar solicitação.")
     st.stop()
-
 
 # --- 4. BASE DE DADOS ---
 equip_data = {
