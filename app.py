@@ -56,24 +56,54 @@ def definir_vestimenta(caloria):
     return "CAT 4"
 
 # --- 3. SISTEMA DE LOGIN ---
-if 'auth' not in st.session_state: st.session_state['auth'] = None
+st.set_page_config(page_title="Gestão de Arco Elétrico", layout="wide")
+
+if 'auth' not in st.session_state:
+    st.session_state['auth'] = None
+
 if st.session_state['auth'] is None:
     st.title("🔐 Acesso ao Sistema NBR 17227")
-    u = st.text_input("E-mail")
-    p = st.text_input("Senha", type="password")
-    if st.button("Acessar"):
-        if u == "admin" and p == "101049app":
-            st.session_state['auth'] = {"role": "admin", "user": "Administrador"}
-            st.rerun()
-        else:
+    t1, t2 = st.tabs(["Entrar", "Solicitar Acesso"])
+    
+    with t1:
+        u = st.text_input("Usuário (E-mail)")
+        p = st.text_input("Senha", type="password")
+        if st.button("Acessar"):
+            if u == "admin" and p == "101049app":
+                st.session_state['auth'] = {"role": "admin", "user": "Administrador"}
+                st.rerun()
+            else:
+                try:
+                    res = supabase.table("usuarios").select("*").eq("email", u).eq("senha", p).execute()
+                    if res.data:
+                        user_found = res.data[0] 
+                        if user_found['status'] == 'ativo':
+                            data_str = user_found['data_aprovacao'].replace('Z', '+00:00')
+                            data_ap = datetime.fromisoformat(data_str).astimezone(timezone.utc)
+                            agora_utc = datetime.now(timezone.utc)
+                            if agora_utc > data_ap + timedelta(days=365):
+                                st.error("Seu acesso expirou (validade de 1 ano atingida).")
+                            else:
+                                st.session_state['auth'] = {"role": "user", "user": u}
+                                st.rerun()
+                        else:
+                            st.warning(f"Seu acesso está: {user_found['status'].upper()}. Aguarde aprovação.")
+                    else:
+                        st.error("E-mail ou senha incorretos.")
+                except Exception as e:
+                    st.error(f"Erro de conexão: {e}")
+    
+    with t2:
+        ne = st.text_input("Seu E-mail para cadastro")
+        np_ = st.text_input("Crie uma Senha", type="password")
+        if st.button("Enviar Solicitação"):
             try:
-                res = supabase.table("usuarios").select("*").eq("email", u).eq("senha", p).execute()
-                if res.data and res.data[0]['status'] == 'ativo':
-                    st.session_state['auth'] = {"role": "user", "user": u}
-                    st.rerun()
-                else: st.error("Acesso negado ou pendente.")
-            except: st.error("Erro de conexão.")
+                supabase.table("usuarios").insert({"email": ne, "senha": np_, "status": "pendente"}).execute()
+                st.success("Solicitação enviada!")
+            except:
+                st.error("Erro ao enviar solicitação.")
     st.stop()
+
 
 # --- 4. BASE DE DADOS ---
 equip_data = {
