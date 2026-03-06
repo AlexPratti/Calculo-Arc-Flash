@@ -142,8 +142,15 @@ aba_p1, aba_p2, aba_p3 = st.tabs(["🔥 Arco Elétrico", "⚡ Curto-Circuito", "
 with aba_p1:
     equip_data = {
         "CCM 15 kV": {"gap": 152.0, "dist": 914.4, "dims": {"914,4 x 914,4 x 914,4": [914.4, 914.4, 914.4, ""]}},
+        "Conjunto de manobra 15 KV": {"gap": 152.0, "dist": 914.4, "dims": {"1143 x 762 x 762": [1143, 762, 762, ""]}},
+        "CCM 5 kV": {"gap": 104.0, "dist": 914.4, "dims": {"660,4 x 660,4 x 660,4": [660.4, 660.4, 660.4, ""]}},
+        "Conjunto de manobra 5 KV": {"gap": 104.0, "dist": 914.4, "dims": {"914,4 x 914,4 x 914,4": [914.4, 914.4, 914.4, ""]}},
+        "Conjunto de manobra 5 KV": {"gap": 104.0, "dist": 914.4, "dims": {"1143 x 762 x 762": [1143, 762, 762, ""]}},
+        "CCM e painel raso de BT": {"gap": 25.0, "dist": 457.2, "dims": {"355,6 x 304,8 x <= 203,2": [355.6, 304.8, 203.2, "<="]}},
         "CCM e painel típico de BT": {"gap": 25.0, "dist": 457.2, "dims": {"355,6 x 304,8 x > 203,2": [355.6, 304.8, 203.2, ">"]}},
-        "Conjunto de manobra BT": {"gap": 32.0, "dist": 609.6, "dims": {"508 x 508 x 508": [508.0, 508.0, 508.0, ""]}}
+        "Conjunto de manobra BT": {"gap": 13.0, "dist": 457.2, "dims": {"508 x 508 x 508": [508.0, 508.0, 508.0, ""]}},
+        "Caixa de junção de cabos": {"gap": 32.0, "dist": 609.6, "dims": {"355,6 x 304,8 x <= 203,2": [355.6, 304.8, 203.2, "<="]}},
+        "Caixa de junção de cabos": {"gap": 32.0, "dist": 609.6, "dims": {"355,6 x 304,8 x > 203,2": [355.6, 304.8, 203.2, ">"]}}
     }
     
     tab_eq, tab_calc, tab_pdf = st.tabs(["Equipamento", "Cálculos", "Relatório"])
