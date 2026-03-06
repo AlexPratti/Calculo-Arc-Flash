@@ -12,6 +12,13 @@ from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER, TA_LEFT
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether, ListFlowable, ListItem
 from reportlab.pdfgen import canvas
 
+# --- HIPERLINK COM OUTROS APPs
+with st.sidebar:
+    st.title("Navegação")
+    st.link_button("Corrente de Curto-Circuito", "https://short-circuit-calc-e5u5dmgap2uqfdtbkc3d4e.streamlit.app/", use_container_width=True)
+    st.link_button("Banco de Capacitores", "https://c-lculobancocapacitores-tne9epqsrh64gtwaakzyax.streamlit.app/", use_container_width=True)
+
+
 # --- 1. CONFIGURAÇÃO E CONEXÃO ---
 st.set_page_config(page_title="NBR 17227 - Relatório Técnico Profissional", layout="wide")
 
