@@ -87,6 +87,25 @@ if st.session_state['auth'] is None:
                         st.error("Acesso negado ou pendente.") 
                 except: 
                     st.error("Erro na conexão com banco de dados.")
+    with t2:
+        st.subheader("Solicitar Novo Acesso")
+        u_novo = st.text_input("E-mail para Cadastro", key="new_u")
+        p_novo = st.text_input("Senha para Cadastro", type="password", key="new_p")
+        
+        if st.button("Enviar Solicitação", use_container_width=True):
+            if u_novo and p_novo:
+                try:
+                    # Insere o novo usuário com status 'pendente' no Supabase
+                    supabase.table("usuarios").insert({
+                        "email": u_novo, 
+                        "senha": p_novo, 
+                        "status": "pendente"
+                    }).execute()
+                    st.success("✅ Solicitação enviada! Aguarde a aprovação do administrador.")
+                except Exception as e:
+                    st.error(f"Erro ao solicitar: {e}")
+            else:
+                st.warning("Preencha todos os campos.")
 else:
     # --- ÁREA LOGADA (TUDO DAQUI PARA BAIXO SÓ APARECE APÓS LOGIN) ---
     
