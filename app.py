@@ -168,7 +168,10 @@ else:
             st.metric("Fronteira de Arco (DLA)", f"{dla:.1f} mm")
         
             # Energias Incidentes em Negrito (Usando Markdown para controle total)
+            st.write("Energia Incidente (J/cm²)")
             st.markdown(f"### **{e_trab_cal*4.184:.2f} J/cm²**")
+            
+            st.write("Energia Incidente (cal/cm²)")
             st.markdown(f"### **{e_trab_cal:.4f} cal/cm²**")
 
             st.write("#### Tabela de Sensibilidade")
