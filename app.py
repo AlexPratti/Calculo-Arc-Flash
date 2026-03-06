@@ -62,12 +62,18 @@ def definir_vestimenta(caloria):
     return "CAT 4"
 
 # --- 3. SISTEMA DE LOGIN --- 
-if 'auth' not in st.session_state: st.session_state['auth'] = None 
+if 'auth' not in st.session_state: 
+    st.session_state['auth'] = None 
 
+# --- HIPERLINKS (Sempre visíveis na barra lateral) ---
+with st.sidebar:
+    st.title("Outros Cálculos")
+    st.link_button("Energia Incidente", "https://link1...", use_container_width=True)
+    st.link_button("Arco Elétrico", "https://link2...", use_container_width=True)
+
+# SE NÃO ESTIVER LOGADO: Mostra a tela de login
 if st.session_state['auth'] is None: 
     st.title("ༀ༁༂ Acesso ao Sistema NBR 17227") 
-    
-    # Criando as abas de login e solicitação
     t1, t2 = st.tabs(["Entrar", "Solicitar Acesso"]) 
     
     with t1:
@@ -76,44 +82,26 @@ if st.session_state['auth'] is None:
         if st.button("Acessar"): 
             if u == "admin" and p == "101049app": 
                 st.session_state['auth'] = {"role": "admin", "user": "Administrador"} 
-                # ***********************************************************************************************
-                # --- BOTÃO DE SAIR (Só aparece se estiver logado) ---
-                with st.sidebar:
-                    if st.button("🚪 Sair", use_container_width=True, type="secondary"):
-                    st.session_state['logado'] = False
-                    st.rerun()
-                #***********************************************************************************************
                 st.rerun() 
             else: 
                 try: 
                     res = supabase.table("usuarios").select("*").eq("email", u).eq("senha", p).execute() 
                     if res.data and res.data[0]['status'] == 'ativo': 
                         st.session_state['auth'] = {"role": "user", "user": u} 
-                        # ***********************************************************************************************
-                        # --- BOTÃO DE SAIR (Só aparece se estiver logado) ---
-                        with st.sidebar:
-                            if st.button("🚪 Sair", use_container_width=True, type="secondary"):
-                            st.session_state['logado'] = False
-                            st.rerun()
-                        #***********************************************************************************************
-                        
                         st.rerun() 
                     else: 
                         st.error("Acesso negado ou pendente.") 
                 except: 
-                    st.error("Erro de conexão.") 
-    
-    with t2:
-        ne = st.text_input("Seu E-mail para cadastro", key="reg_email") 
-        np_ = st.text_input("Crie uma Senha", type="password", key="reg_pass") 
-        if st.button("Enviar Solicitação"): 
-            try: 
-                supabase.table("usuarios").insert({"email": ne, "senha": np_, "status": "pendente"}).execute() 
-                st.success("Solicitação enviada com sucesso!") 
-            except Exception as e: 
-                st.error(f"Erro ao enviar solicitação: {e}")
+                    st.error("Erro na conexão.")
 
-    st.stop() 
+# SE ESTIVER LOGADO: Mostra o botão de Sair e o App principal
+else:
+    with st.sidebar:
+        st.divider()
+        st.write(f"Usuário: **{st.session_state['auth']['user']}**")
+        if st.button("🚪 Sair", use_container_width=True):
+            st.session_state['auth'] = None # Reseta o login
+            st.rerun()
 
 
 # --- 4. BASE DE DADOS ---
