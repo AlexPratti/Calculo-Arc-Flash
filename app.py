@@ -17,7 +17,15 @@ with st.sidebar:
     st.title("Outros Cálculos")
     st.link_button("Corrente de Curto-Circuito", "https://short-circuit-calc-e5u5dmgap2uqfdtbkc3d4e.streamlit.app/", use_container_width=True)
     st.link_button("Banco de Capacitores", "https://c-lculobancocapacitores-tne9epqsrh64gtwaakzyax.streamlit.app/", use_container_width=True)
-
+    
+    # --- PARA SAIR DO LOGIN
+    st.divider() # Linha para separar dos outros links
+    if st.button("🚪 Sair / Logout", use_container_width=True):
+        # Limpa todos os dados da sessão
+        for key in st.session_state.keys():
+            del st.session_state[key]
+        # Recarrega o app para voltar à tela de login
+        st.rerun()
 
 # --- 1. CONFIGURAÇÃO E CONEXÃO ---
 st.set_page_config(page_title="NBR 17227 - Relatório Técnico Profissional", layout="wide")
