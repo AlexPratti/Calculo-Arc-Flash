@@ -165,9 +165,13 @@ else:
             st.subheader("Resultados do Estudo")
             st.metric("Corrente de Arco (Iarc)", f"{i_arc:.3f} kA")
             st.metric("Fronteira de Arco (DLA)", f"{dla:.1f} mm")
+            st.metric("Energia Incidente", f"{e_trab_cal:.4f} cal/cm²")
+            st.metric("Energia Incidente", f"{e_trab_cal*4.184:.2f} J/cm²")
             st.table(pd.DataFrame(sens_list, columns=["Distância (mm)", "Energia (cal/cm²)", "Vestimenta"]))
             st.info(f"**Vestimenta (Cálculo):** {v_norma}")
             st.success(f"**Vestimenta (Segurança):** {v_seguranca}")
+
+            
 
     with tab3:
         if 'res' in st.session_state:
