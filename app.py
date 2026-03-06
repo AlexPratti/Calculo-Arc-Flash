@@ -1,29 +1,30 @@
 import streamlit as st
-import pandas as pd
 import numpy as np
 import io
+import pandas as pd
 import math
 from datetime import datetime, timezone, timedelta, date
 from supabase import create_client, Client
-from fpdf import FPDF
 
-# Importações para o PDF (ReportLab - NBR 17227)
+# Importações para PDF
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import cm
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER
+from reportlab.pdfgen import canvas
+from fpdf import FPDF
 
 # --- 1. CONFIGURAÇÃO E CONEXÃO ---
-st.set_page_config(page_title="Plataforma Elétrica Integrada", layout="wide")
+st.set_page_config(page_title="Gestão Elétrica Integrada", layout="wide")
 
 URL_SUPABASE = "https://lfgqxphittdatzknwkqw.supabase.co" 
 KEY_SUPABASE = "sb_publishable_zLiarara0IVVcwQm6oR2IQ_Sb0YOWTe" 
 
-# Inicialização de Variáveis de Estado (Memória do App)
+# Inicialização de Estados (Memória Global)
 if 'auth' not in st.session_state: st.session_state['auth'] = None
-if 'corrente_transferida' not in st.session_state: st.session_state['corrente_transferida'] = 4.85
+if 'corrente_transf' not in st.session_state: st.session_state['corrente_transf'] = 4.85
 if 'df_motores' not in st.session_state:
     st.session_state.df_motores = pd.DataFrame(columns=['Selecionar', 'Equipamento', 'Motor (CV)', 'Quantidade', 'Partida', 'CCM Destino', 'Status'])
 
@@ -33,9 +34,7 @@ except Exception as e:
     st.error(f"Erro no Banco de Dados: {e}")
     st.stop()
 
-# --- 2. CLASSES E FUNÇÕES TÉCNICAS ---
-
-# Funções NBR 17227 (Arco Elétrico)
+# --- 2. FUNÇÕES TÉCNICAS (ARCO ELÉTRICO NBR 17227) ---
 def calc_ia_step(ibf, g, k):
     k1, k2, k3, k4, k5, k6, k7, k8, k9, k10 = k
     log_base = k1 + k2 * np.log10(ibf) + k3 * np.log10(g)
@@ -68,7 +67,7 @@ def definir_vestimenta(cal):
     if cal <= 40: return "CAT 4"
     return "PERIGO (>40 cal/cm²)"
 
-# Funções Banco de Capacitores
+# --- 3. FUNÇÕES TÉCNICAS (CAPACITORES) ---
 def calcular_dimensionamento_cap(p_kw, fp_atual, fp_alvo, tensao):
     phi_atual = math.acos(min(fp_atual, 0.9999))
     phi_alvo = math.acos(min(fp_alvo, 0.9999))
@@ -84,15 +83,9 @@ def calcular_dimensionamento_cap(p_kw, fp_atual, fp_alvo, tensao):
             break
     return {"kvar_total": round(kvar_total, 2), "i_nom": round(corrente_nominal, 2), "i_proj": round(corrente_projeto, 2), "bitola": bitola_sugerida, "estagios": 6 if kvar_total <= 100 else 12, "pot_estagio": round(kvar_total / 5, 2) if kvar_total <= 100 else round(kvar_total / 11, 2)}
 
-class RelatorioPDFCap(FPDF):
-    def header(self):
-        self.set_font('Arial', 'B', 12)
-        self.cell(0, 10, 'RELATORIO TECNICO DE CORRECAO DE FATOR DE POTENCIA', 0, 1, 'C')
-        self.ln(5)
-
-# --- 3. SISTEMA DE LOGIN ---
+# --- 4. SISTEMA DE LOGIN ---
 if st.session_state['auth'] is None:
-    st.title("🔐 Acesso ao Sistema Integrado")
+    st.title("🔐 Acesso ao Sistema NBR 17227")
     t1, t2 = st.tabs(["Entrar", "Solicitar Acesso"])
     with t1:
         u = st.text_input("Usuário (E-mail)")
@@ -113,22 +106,21 @@ if st.session_state['auth'] is None:
                     else: st.error("Credenciais incorretas.")
                 except: st.error("Erro de conexão.")
     with t2:
-        ne = st.text_input("Seu E-mail para cadastro", key="reg_email")
-        np_ = st.text_input("Crie uma Senha", type="password", key="reg_pass")
+        ne = st.text_input("E-mail para cadastro", key="reg_email")
+        np_ = st.text_input("Senha", type="password", key="reg_pass")
         if st.button("Enviar Solicitação"):
             try:
                 supabase.table("usuarios").insert({"email": ne, "senha": np_, "status": "pendente"}).execute()
-                st.success("Solicitação enviada com sucesso!")
+                st.success("Solicitação enviada!")
             except: st.error("E-mail já cadastrado.")
     st.stop()
 
-# --- 4. INTERFACE PRINCIPAL ---
+# --- 5. INTERFACE PRINCIPAL ---
 st.sidebar.write(f"Conectado: **{st.session_state['auth']['user']}**")
 if st.sidebar.button("Sair"):
     st.session_state['auth'] = None
     st.rerun()
 
-# Painel Admin
 if st.session_state['auth']['role'] == "admin":
     with st.expander("⚙️ Gerenciar Usuários"):
         res = supabase.table("usuarios").select("*").execute()
@@ -139,15 +131,21 @@ if st.session_state['auth']['role'] == "admin":
                 supabase.table("usuarios").update({"status": "ativo"}).eq("email", user['email']).execute()
                 st.rerun()
 
-# --- 5. NAVEGAÇÃO ENTRE MÓDULOS ---
-aba_arco, aba_curto, aba_cap = st.tabs(["🔥 Arco Elétrico (NBR 17227)", "⚡ Curto-Circuito e Motores", "🔋 Banco de Capacitores"])
+# --- ABAS DO APP ---
+aba_arco, aba_curto, aba_cap = st.tabs(["🔥 Arco Elétrico (NBR 17227)", "⚡ Curto-Circuito", "🔋 Banco de Capacitores"])
 
 # --- MODULO 1: ARCO ELÉTRICO ---
 with aba_arco:
+    # LISTA COMPLETA CONFORME SUA IMAGEM
     equip_data = {
         "CCM 15 kV": {"gap": 152.0, "dist": 914.4, "dims": {"914,4 x 914,4 x 914,4": [914.4, 914.4, 914.4, ""]}},
+        "Conjunto de manobra 15 kV": {"gap": 152.0, "dist": 914.4, "dims": {"914,4 x 914,4 x 914,4": [914.4, 914.4, 914.4, ""]}},
+        "CCM 5 kV": {"gap": 104.0, "dist": 914.4, "dims": {"914,4 x 914,4 x 914,4": [914.4, 914.4, 914.4, ""]}},
+        "Conjunto de manobra 5 kV": {"gap": 104.0, "dist": 914.4, "dims": {"914,4 x 914,4 x 914,4": [914.4, 914.4, 914.4, ""]}},
+        "CCM e painel raso de BT": {"gap": 25.0, "dist": 457.2, "dims": {"355,6 x 304,8 x 101,6": [355.6, 304.8, 101.6, ""]}},
         "CCM e painel típico de BT": {"gap": 25.0, "dist": 457.2, "dims": {"355,6 x 304,8 x > 203,2": [355.6, 304.8, 203.2, ">"]}},
-        "Conjunto de manobra BT": {"gap": 32.0, "dist": 609.6, "dims": {"508 x 508 x 508": [508.0, 508.0, 508.0, ""]}}
+        "Conjunto de manobra BT": {"gap": 32.0, "dist": 609.6, "dims": {"508 x 508 x 508": [508.0, 508.0, 508.0, ""]}},
+        "Caixa de junção de cabos": {"gap": 13.0, "dist": 457.2, "dims": {"254 x 254 x 254": [254.0, 254.0, 254.0, ""]}}
     }
 
     t_eq, t_calc, t_pdf = st.tabs(["Equipamento", "Cálculos", "Relatório"])
@@ -164,8 +162,8 @@ with aba_arco:
 
     with t_calc:
         v_oc = st.number_input("Tensão Voc (kV)", 0.2, 15.0, 13.8)
-        # CONEXÃO: Recebe valor da aba de curto-circuito via session_state
-        i_bf = st.number_input("Corrente Ibf (kA)", 0.5, 106.0, value=float(st.session_state['corrente_transferida']))
+        # CONEXÃO: Recebe valor vindo do cálculo de curto-circuito
+        i_bf = st.number_input("Corrente Ibf (kA)", 0.5, 106.0, value=float(st.session_state['corrente_transf']))
         t_arc = st.number_input("Tempo T (ms)", 10.0, 5000.0, 488.0)
 
         if st.button("Executar Estudo"):
@@ -203,10 +201,10 @@ with aba_arco:
 
 # --- MODULO 2: CURTO-CIRCUITO ---
 with aba_curto:
-    st.title("⚡ Curto-Circuito e Dimensionamento")
+    st.header("⚡ Dimensionamento de Curto-Circuito e Motores")
     CABOS_COMERCIAIS = [2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240, 300]
     AMPACIDADE = [24, 32, 41, 57, 76, 101, 125, 151, 192, 232, 269, 309, 353, 415, 473]
-
+    
     def sugerir_cabo(corrente, secao_queda):
         secao_final = max(secao_queda, 2.5)
         for i, cap in enumerate(AMPACIDADE):
@@ -215,34 +213,34 @@ with aba_curto:
 
     with st.sidebar:
         st.header("🔌 Parâmetros da SE")
-        p_trafo = st.number_input("Potência Trafo (kVA)", value=225.0, key="se_trafo")
-        v_sec = st.number_input("Tensão (V)", value=380.0, key="se_tensao")
-        z_pct = st.number_input("Impedância Z% (Trafo)", value=5.0, key="se_z")
-        dist_se_qgbt = st.number_input("Distância SE ao QGBT (m)", value=15.0, key="se_dist")
+        p_trafo = st.number_input("Potência Trafo (kVA)", value=225.0, key="c_trafo")
+        v_sec = st.number_input("Tensão (V)", value=380.0, key="c_vsec")
+        z_pct = st.number_input("Impedância Z% (Trafo)", value=5.0, key="c_zpct")
+        dist_se_qgbt = st.number_input("Distância SE ao QGBT (m)", value=15.0, key="c_distse")
 
-    n_ccm = st.number_input("Quantidade de CCMs", min_value=1, value=2, key="qtd_ccm")
-    dist_ccms = {i+1: st.number_input(f"Dist. CCM {i+1} (m)", value=20.0, key=f"d_{i}") for i in range(int(n_ccm))}
+    n_ccm = st.number_input("Quantidade de CCMs", min_value=1, value=2, key="c_nccm")
+    dist_ccms = {i+1: st.number_input(f"Dist. CCM {i+1} (m)", value=20.0, key=f"c_d_{i}") for i in range(int(n_ccm))}
 
     st.header("📋 Cadastro de Motores")
     with st.container(border=True):
         c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1.5, 1])
-        nome_eq = c1.text_input("Equipamento", key="mot_nome")
-        pot = c2.selectbox("Motor (CV)", options=[0.5, 1, 2, 3, 5, 7.5, 10, 15, 20, 30, 50, 100], index=None, key="mot_pot")
-        qtd = c3.number_input("Qtd", min_value=1, value=1, key="mot_qtd")
-        part = c4.selectbox("Partida", options=["Direta", "Estrela-Triângulo", "Inversor", "Soft-Starter"], key="mot_part")
-        dest = c5.selectbox("CCM", options=list(range(1, int(n_ccm) + 1)), key="mot_dest")
+        with c1: n_eq = st.text_input("Equipamento", key="c_neq")
+        with c2: pot_m = st.selectbox("Motor (CV)", options=[0.5, 1, 2, 3, 5, 7.5, 10, 15, 20, 30, 50, 100], index=None, key="c_potm")
+        with c3: qtd_m = st.number_input("Qtd", min_value=1, value=1, key="c_qtdm")
+        with c4: part_m = st.selectbox("Partida", options=["Direta", "Estrela-Triângulo", "Inversor", "Soft-Starter"], key="c_partm")
+        with c5: dest_m = st.selectbox("CCM", options=list(range(1, int(n_ccm) + 1)), key="c_destm")
         if st.button("➕ Adicionar à Lista"):
-            if pot and nome_eq:
-                nova = pd.DataFrame([{'Selecionar': False, 'Equipamento': nome_eq, 'Motor (CV)': float(pot), 'Quantidade': int(qtd), 'Partida': part, 'CCM Destino': int(dest), 'Status': 'Novo'}])
-                st.session_state.df_motores = pd.concat([st.session_state.df_motores, nova], ignore_index=True)
+            if pot_m and n_eq:
+                nova_m = pd.DataFrame([{'Selecionar': False, 'Equipamento': n_eq, 'Motor (CV)': float(pot_m), 'Quantidade': int(qtd_m), 'Partida': part_m, 'CCM Destino': int(dest_m), 'Status': 'Novo'}])
+                st.session_state.df_motores = pd.concat([st.session_state.df_motores, nova_m], ignore_index=True)
                 st.rerun()
 
     if not st.session_state.df_motores.empty:
         st.header("🏭 Lista de Cargas")
-        st.session_state.df_motores = st.data_editor(st.session_state.df_motores, use_container_width=True, key="editor_v15")
+        st.session_state.df_motores = st.data_editor(st.session_state.df_motores, use_container_width=True, key="c_editor")
         if st.button("🚀 EXECUTAR DIMENSIONAMENTO COMPLETO"):
             icc_qgbt = v_sec / (1.732 * ((z_pct/100)*((v_sec**2)/(p_trafo*1000))))
-            res_ccm = []
+            res_c = []
             for i in range(1, int(n_ccm) + 1):
                 m_ccm = st.session_state.df_motores[st.session_state.df_motores['CCM Destino'] == i]
                 cv_ccm = (m_ccm['Motor (CV)'] * m_ccm['Quantidade']).sum()
@@ -250,69 +248,44 @@ with aba_curto:
                 in_ccm = (cv_ccm * 736) / (v_sec * 1.732 * 0.85 * 0.9)
                 s_queda = (1.732 * dist_ccms[i] * in_ccm * 0.85) / (56 * (v_sec * 0.03))
                 cabo, _ = sugerir_cabo(in_ccm, s_queda)
-                res_ccm.append({"Painel": f"CCM {i}", "Carga (CV)": f"{cv_ccm:.1f}", "Cabo": f"{cabo} mm²", "Icc Local (kA)": round((icc_qgbt * 0.85)/1000, 4)})
-            st.session_state.resultados_finais = res_ccm
+                res_c.append({"Painel": f"CCM {i}", "Carga (CV)": f"{cv_ccm:.1f}", "Cabo": f"{cabo} mm²", "Icc Local (kA)": round((icc_qgbt * 0.85)/1000, 4)})
+            st.session_state.res_curto = res_c
 
-    if 'resultados_finais' in st.session_state:
-        st.subheader("📊 Resultados")
-        st.table(pd.DataFrame(st.session_state.resultados_finais))
-        st.divider()
-        st.subheader("📤 Exportar e Transferir")
-        c_sel, c_btn1, c_btn2 = st.columns([3, 1, 1])
-        opcoes = [r["Painel"] for r in st.session_state.resultados_finais]
-        escolha = c_sel.selectbox("Selecione o Painel:", options=opcoes, key="menu_export_final")
-        
-        if c_btn1.button("💾 Salvar no Supabase"):
-            dados = next(item for item in st.session_state.resultados_finais if item["Painel"] == escolha)
+    if 'res_curto' in st.session_state:
+        st.table(pd.DataFrame(st.session_state.res_curto))
+        col_s, col_b1, col_b2 = st.columns([3, 2, 2])
+        escolha = col_s.selectbox("Selecione para exportar:", [r["Painel"] for r in st.session_state.res_curto], key="c_sel_export")
+        if col_b1.button("💾 Salvar no Supabase"):
+            dados = next(item for item in st.session_state.res_curto if item["Painel"] == escolha)
             supabase.table("calculos_curto").insert({"tag_painel": dados["Painel"], "icc_ka": float(dados["Icc Local (kA)"]), "v_sec": float(v_sec)}).execute()
-            st.success(f"✅ {escolha} salvo!")
-        
-        # BOTÃO SOLICITADO: Envia valor para Arco Elétrico
-        if c_btn2.button("🚀 Enviar para Arco Elétrico"):
-            dados = next(item for item in st.session_state.resultados_finais if item["Painel"] == escolha)
-            st.session_state['corrente_transferida'] = dados["Icc Local (kA)"]
-            st.success(f"Valor {dados['Icc Local (kA)']} kA enviado!")
+            st.success("Salvo!")
+        # BOTÃO DE TRANSFERÊNCIA SOLICITADO
+        if col_b2.button("🚀 Enviar para Arco Elétrico"):
+            dados = next(item for item in st.session_state.res_curto if item["Painel"] == escolha)
+            st.session_state['corrente_transf'] = dados["Icc Local (kA)"]
+            st.success(f"Valor {dados['Icc Local (kA)']} kA transferido!")
 
 # --- MODULO 3: CAPACITORES ---
 with aba_cap:
-    st.title("⚡ Banco de Capacitores")
-    with st.form("form_calculo_cap"):
-        col_a, col_b = st.columns(2)
-        with col_a:
-            cliente = st.text_input("Cliente", "EMPRESA TESTE")
-            p_kw = st.number_input("Potencia Ativa (kW)", min_value=0.1, value=150.0)
-            tensao_cap = st.selectbox("Tensao (V)", [220, 380, 440], index=1)
-        with col_b:
-            fp_atual = st.number_input("Fator de Potencia Atual", min_value=0.50, max_value=0.99, value=0.82, step=0.01)
-            fp_alvo = st.number_input("Fator de Potencia Alvo", min_value=0.92, max_value=1.00, value=0.95, step=0.01)
-        btn_calcular_cap = st.form_submit_button("Calcular e Preparar Relatório")
+    st.header("🔋 Banco de Capacitores")
+    with st.form("form_cap"):
+        ca, cb = st.columns(2)
+        cliente = ca.text_input("Cliente", "EMPRESA TESTE")
+        p_kw = ca.number_input("Potência Ativa (kW)", value=150.0)
+        v_cap = ca.selectbox("Tensão (V)", [220, 380, 440], index=1)
+        fp_at = cb.number_input("FP Atual", 0.50, 0.99, 0.82)
+        fp_al = cb.number_input("FP Alvo", 0.92, 1.00, 0.95)
+        btn_cap = st.form_submit_button("Calcular e Gerar PDF")
 
-    if btn_calcular_cap:
-        res_cap = calcular_dimensionamento_cap(p_kw, fp_atual, fp_alvo, tensao_cap)
-        st.success("Cálculo realizado com sucesso!")
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Total kVAr", f"{res_cap['kvar_total']} kVAr")
-        c2.metric("Corrente Projeto", f"{res_cap['i_proj']} A")
-        c3.metric("Cabo Sugerido", f"{res_cap['bitola']} mm²")
-
-        pdf_cap = RelatorioPDFCap()
-        pdf_cap.add_page()
-        pdf_cap.set_font("Arial", '', 10)
-        pdf_cap.cell(0, 8, f"CLIENTE: {cliente.upper()}", ln=True)
-        pdf_cap.cell(0, 8, f"EQUIPAMENTO: BANCO DE CAPACITORES {tensao_cap}V", ln=True)
-        pdf_cap.cell(0, 8, f"DATA: {date.today().strftime('%d/%m/%Y')}", ln=True)
-        pdf_cap.ln(5)
-        pdf_cap.set_font("Arial", 'B', 11)
-        pdf_cap.cell(0, 10, "1. MEMORIAL DE CALCULO E PARAMETROS", ln=True)
-        pdf_cap.set_font("Arial", '', 10)
-        pdf_cap.cell(0, 7, f"- Potencia Ativa: {p_kw} kW", ln=True)
-        pdf_cap.cell(0, 7, f"- FP Atual: {fp_atual} / FP Alvo: {fp_alvo}", ln=True)
-        pdf_cap.cell(0, 7, f"- Potencia Reativa: {res_cap['kvar_total']} kVAr", ln=True)
-        pdf_cap.ln(5)
-        pdf_cap.set_font("Arial", 'B', 11)
-        pdf_cap.cell(0, 10, "2. ESPECIFICACAO DE CONDUTORES", ln=True)
-        pdf_cap.set_font("Arial", '', 10)
-        pdf_cap.multi_cell(0, 7, f"Corrente de projeto (1.35x In): {res_cap['i_proj']} A. Bitola: {res_cap['bitola']} mm2.")
-        
-        pdf_out = pdf_cap.output(dest='S').encode('latin-1', errors='replace')
-        st.download_button("Baixar Relatório Capacitores", pdf_out, f"Relatorio_Cap_{cliente}.pdf", "application/pdf")
+    if btn_cap:
+        res_cap = calcular_dimensionamento_cap(p_kw, fp_at, fp_al, v_cap)
+        st.success("Calculado!")
+        pdf_c = FPDF()
+        pdf_c.add_page()
+        pdf_c.set_font("Arial", 'B', 12)
+        pdf_c.cell(0, 10, f"RELATORIO CAPACITORES: {cliente.upper()}", ln=True, align='C')
+        pdf_c.set_font("Arial", '', 10)
+        pdf_c.cell(0, 10, f"Potência Reativa: {res_cap['kvar_total']} kVAr", ln=True)
+        pdf_c.cell(0, 10, f"Cabo Sugerido: {res_cap['bitola']} mm2", ln=True)
+        out_cap = pdf_c.output(dest='S').encode('latin-1', errors='replace')
+        st.download_button("Baixar PDF Capacitores", out_cap, "relatorio_cap.pdf", "application/pdf")
