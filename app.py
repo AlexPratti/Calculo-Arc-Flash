@@ -166,13 +166,15 @@ else:
             # Métricas Principais
             st.metric("Corrente de Arco (Iarc)", f"{i_arc:.3f} kA")
             st.metric("Fronteira de Arco (DLA)", f"{dla:.1f} mm")
-        
-            # Energias Incidentes em Negrito (Usando Markdown para controle total)
-            st.write("Energia Incidente (J/cm²)")
-            st.markdown(f"### **{e_trab_cal*4.184:.2f} J/cm²**")
             
-            st.write("Energia Incidente (cal/cm²)")
-            st.markdown(f"### **{e_trab_cal:.4f} cal/cm²**")
+            st.write("") # Espaço extra
+            
+            # --- ENERGIAS EM DESTAQUE TOTAL ---
+            # Título e valor em negrito e tamanho grande
+            st.markdown(f"### **Energia Incidente: {e_trab_cal*4.184:.2f} J/cm²**")
+            st.markdown(f"### **Energia Incidente: {e_trab_cal:.4f} cal/cm²**")
+
+            st.write("") # Espaço extra
 
             st.write("#### Tabela de Sensibilidade")
             st.table(pd.DataFrame(sens_list, columns=["Distância (mm)", "Energia (cal/cm²)", "Vestimenta"]))
