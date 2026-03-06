@@ -167,9 +167,27 @@ else:
             st.metric("Fronteira de Arco (DLA)", f"{dla:.1f} mm")
             st.metric("Energia Incidente", f"{e_trab_cal*4.184:.2f} J/cm²")
             st.metric("Energia Incidente", f"{e_trab_cal:.4f} cal/cm²")
+
+            st.write("#### Tabela de Sensibilidade")
             st.table(pd.DataFrame(sens_list, columns=["Distância (mm)", "Energia (cal/cm²)", "Vestimenta"]))
-            st.info(f"**Vestimenta (Cálculo):** {v_norma}")
-            st.success(f"**Vestimenta (Segurança):** {v_seguranca}")
+
+        # --- DESTAQUE DAS VESTIMENTAS COM LETRAS MAIORES ---
+            st.markdown(f"""
+                <div style="background-color: #15324d; padding: 20px; border-radius: 10px; border-left: 5px solid #2196f3; margin-bottom: 10px;">
+                    <p style="color: white; margin: 0; font-size: 14px;">Vestimenta (Conforme Cálculo):</p>
+                    <p style="color: #2196f3; margin: 0; font-size: 32px; font-weight: bold;">{v_norma}</p>
+                </div>
+            
+                <div style="background-color: #1b3d2f; padding: 20px; border-radius: 10px; border-left: 5px solid #4caf50;">
+                    <p style="color: white; margin: 0; font-size: 14px;">Vestimenta (Princípio de Segurança Normativo):</p>
+                    <p style="color: #4caf50; margin: 0; font-size: 32px; font-weight: bold;">{v_seguranca}</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+            
+            # st.table(pd.DataFrame(sens_list, columns=["Distância (mm)", "Energia (cal/cm²)", "Vestimenta"]))
+            # st.info(f"**Vestimenta (Cálculo):** {v_norma}")
+            # st.success(f"**Vestimenta (Segurança):** {v_seguranca}")
 
             
 
