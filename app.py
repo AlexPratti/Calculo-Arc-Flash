@@ -17,15 +17,6 @@ with st.sidebar:
     st.title("Outros Cálculos")
     st.link_button("Corrente de Curto-Circuito", "https://short-circuit-calc-e5u5dmgap2uqfdtbkc3d4e.streamlit.app/", use_container_width=True)
     st.link_button("Banco de Capacitores", "https://c-lculobancocapacitores-tne9epqsrh64gtwaakzyax.streamlit.app/", use_container_width=True)
-    
-    # --- PARA SAIR DO LOGIN
-    st.divider() # Linha para separar dos outros links
-    if st.button("🚪 Sair / Logout", use_container_width=True):
-        # Limpa todos os dados da sessão
-        for key in st.session_state.keys():
-            del st.session_state[key]
-        # Recarrega o app para voltar à tela de login
-        st.rerun()
 
 # --- 1. CONFIGURAÇÃO E CONEXÃO ---
 st.set_page_config(page_title="NBR 17227 - Relatório Técnico Profissional", layout="wide")
@@ -85,12 +76,27 @@ if st.session_state['auth'] is None:
         if st.button("Acessar"): 
             if u == "admin" and p == "101049app": 
                 st.session_state['auth'] = {"role": "admin", "user": "Administrador"} 
+                # ***********************************************************************************************
+                # --- BOTÃO DE SAIR (Só aparece se estiver logado) ---
+                with st.sidebar:
+                    if st.button("🚪 Sair", use_container_width=True, type="secondary"):
+                    st.session_state['logado'] = False
+                    st.rerun()
+                #***********************************************************************************************
                 st.rerun() 
             else: 
                 try: 
                     res = supabase.table("usuarios").select("*").eq("email", u).eq("senha", p).execute() 
                     if res.data and res.data[0]['status'] == 'ativo': 
                         st.session_state['auth'] = {"role": "user", "user": u} 
+                        # ***********************************************************************************************
+                        # --- BOTÃO DE SAIR (Só aparece se estiver logado) ---
+                        with st.sidebar:
+                            if st.button("🚪 Sair", use_container_width=True, type="secondary"):
+                            st.session_state['logado'] = False
+                            st.rerun()
+                        #***********************************************************************************************
+                        
                         st.rerun() 
                     else: 
                         st.error("Acesso negado ou pendente.") 
