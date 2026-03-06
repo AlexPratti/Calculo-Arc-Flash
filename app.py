@@ -21,7 +21,7 @@ KEY_SUPABASE = "sb_publishable_zLiarara0IVVcwQm6oR2IQ_Sb0YOWTe"
 if 'auth' not in st.session_state: st.session_state['auth'] = None
 if 'corrente_transf' not in st.session_state: st.session_state['corrente_transf'] = 4.85
 if 'df_motores' not in st.session_state: 
-    st.session_state.df_motores = pd.DataFrame(columns=['Equipamento', 'Motor (CV)', 'Quantidade', 'Partida', 'CCM Destino'])
+    st.session_state.df_motores = pd.DataFrame(columns=['Equipamento', 'Motor (CV)', 'Quantidade', 'CCM Destino'])
 
 try:
     supabase: Client = create_client(URL_SUPABASE, KEY_SUPABASE)
@@ -76,7 +76,7 @@ def calcular_cap(p_kw, fp_at, fp_al, v):
             break
     return {"kvar": round(kvar, 2), "i_proj": round(i_nom * 1.35, 2), "bitola": bitola}
 
-# --- 3. SISTEMA DE LOGIN COM VALIDAÇÃO DE 1 ANO ---
+# --- 3. SISTEMA DE LOGIN ---
 if st.session_state['auth'] is None:
     st.title("🔐 Login do Sistema")
     u_login = st.text_input("E-mail")
@@ -86,9 +86,9 @@ if st.session_state['auth'] is None:
         try:
             res = supabase.table("usuarios").select("*").eq("email", u_login).eq("senha", p_login).execute()
             if res.data and len(res.data) > 0:
-                user_data = res.data[0] # Acessa o primeiro item da lista
+                user_data = res.data[0] # Correção: Acessar índice 0
                 
-                # Conversão de data ISO para comparação
+                # Validação de data (1 ano)
                 raw_date = user_data['created_at'].replace('Z', '').split('+')[0]
                 data_criacao = datetime.fromisoformat(raw_date).replace(tzinfo=timezone.utc)
                 hoje = datetime.now(timezone.utc)
@@ -124,16 +124,13 @@ with aba_arco:
         dist = st.number_input("Distância de Trabalho (mm)", value=457.2)
     with col_c:
         v_oc = st.number_input("Tensão (kV)", value=0.38)
-        # USA VALOR QUE PODE TER SIDO ENVIADO DA ABA DE CURTO-CIRCUITO
         i_bf = st.number_input("Ibf (kA)", value=float(st.session_state['corrente_transf']))
         t_ms = st.number_input("Tempo (ms)", value=100.0)
 
     if st.button("Calcular Arco"):
-        # Lógica simplificada de interpolação para o exemplo
         k_v = [0.6, 2.7, 14.3]
         k_ia = {0.6: [-0.04287, 1.035, -0.083, 0, 0, -4.783e-9, 1.962e-6, -0.000229, 0.003141, 1.092], 2.7: [0.0065, 1.001, -0.024, 0,0,0,0,0, -0.003191, 0.9729], 14.3: [0.005795, 1.015, -0.011, 0,0,0,0,0, -0.003191, 0.9729]}
         k_en = {0.6: [0.753364, 0.566, 1.752636, 0, 0, -4.783e-9, 1.962e-6, -0.000229, 0.003141, 1.092, 0, -1.598, 0.957], 2.7: [2.40021, 0.165, 0.354202, 0,0,0,0,0, -0.003191, 0.9729, 0, -1.569, 0.9778], 14.3: [3.825917, 0.11, -0.999749, 0,0,0,0,0, -0.003191, 0.9729, 0, -1.568, 0.99]}
-        
         ia_sts = [calc_ia_step(i_bf, gap, k_ia[v]) for v in k_v]
         e_sts = [calc_en_step(ia, i_bf, gap, dist, t_ms, k_en[v], 0.5) for ia, v in zip(ia_sts, k_v)]
         energia = interpolar(v_oc, *e_sts) / 4.184
@@ -142,62 +139,43 @@ with aba_arco:
 
 # --- ABA CURTO-CIRCUITO ---
 with aba_curto:
-    st.header("⚡ Dimensionamento de CCM e Curto-Circuito")
-    with st.expander("Dados da Subestação", expanded=True):
-        c1, c2, c3 = st.columns(3)
-        pot_t = c1.number_input("Trafo (kVA)", value=225.0)
-        tens_t = c2.number_input("Tensão (V)", value=380.0)
-        z_t = c3.number_input("Z% do Trafo", value=5.0)
+    st.header("⚡ Curto-Circuito")
+    c1, c2, c3 = st.columns(3)
+    pot_t = c1.number_input("Trafo (kVA)", value=225.0)
+    tens_t = c2.number_input("Tensão (V)", value=380.0)
+    z_t = c3.number_input("Z% Trafo", value=5.0)
     
-    st.subheader("Cadastro de Motores")
-    with st.container(border=True):
-        col1, col2, col3 = st.columns([2, 1, 1])
-        m_tag = col1.text_input("Nome/Tag")
-        m_cv = col2.selectbox("CV", [1, 2, 3, 5, 7.5, 10, 15, 20, 30, 50])
-        m_qtd = col3.number_input("Qtd", 1)
-        if st.button("➕ Adicionar Motor"):
-            novo = pd.DataFrame([{'Equipamento': m_tag, 'Motor (CV)': m_cv, 'Quantidade': m_qtd, 'CCM Destino': 1}])
-            st.session_state.df_motores = pd.concat([st.session_state.df_motores, novo], ignore_index=True)
-            st.rerun()
-
-    if not st.session_state.df_motores.empty:
-        st.data_editor(st.session_state.df_motores, use_container_width=True)
-        if st.button("🚀 Calcular Icc"):
-            icc_base = tens_t / (1.732 * ((z_t/100)*((tens_t**2)/(pot_t*1000))))
-            icc_ka = round((icc_base * 0.85) / 1000, 3)
-            st.session_state.res_cc_final = icc_ka
-            st.success(f"Corrente de Curto Calculada: {icc_ka} kA")
-            
-            if st.button("💾 ENVIAR VALOR PARA ARCO ELÉTRICO"):
-                st.session_state['corrente_transf'] = st.session_state.res_cc_final
-                st.success("Valor transferido!")
+    if st.button("🚀 Calcular Icc"):
+        icc_base = tens_t / (1.732 * ((z_t/100)*((tens_t**2)/(pot_t*1000))))
+        icc_ka = round((icc_base * 0.85) / 1000, 3)
+        st.session_state.res_cc_final = icc_ka
+        st.success(f"Icc: {icc_ka} kA")
+    
+    if 'res_cc_final' in st.session_state:
+        if st.button("💾 ENVIAR VALOR PARA ARCO ELÉTRICO"):
+            st.session_state['corrente_transf'] = st.session_state.res_cc_final
+            st.success("Valor transferido com sucesso!")
 
 # --- ABA CAPACITORES ---
 with aba_cap:
     st.header("🔋 Banco de Capacitores")
-    c1, c2 = st.columns(2)
-    p_ativa = c1.number_input("Potência Ativa (kW)", value=100.0)
-    v_rede = c1.selectbox("Tensão da Rede",, index=1)
-    fp_a = c2.number_input("FP Atual", 0.5, 0.99, 0.80)
-    fp_o = c2.number_input("FP Objetivo", 0.92, 1.0, 0.95)
+    col1, col2 = st.columns(2)
+    p_ativa = col1.number_input("Potência Ativa (kW)", value=100.0)
+    v_rede = col1.selectbox("Tensão da Rede (V)", [220, 380, 440], index=1) # CORRIGIDO
+    fp_a = col2.number_input("FP Atual", 0.5, 0.99, 0.80)
+    fp_o = col2.number_input("FP Objetivo", 0.92, 1.0, 0.95)
     
     if st.button("Calcular Banco"):
         res = calcular_cap(p_ativa, fp_a, fp_o, v_rede)
         st.write(f"Potência Reativa: **{res['kvar']} kVAr**")
-        st.write(f"Cabo de Cobre sugerido: **{res['bitola']} mm²**")
+        st.write(f"Cabo de Cobre: **{res['bitola']} mm²**")
 
 # --- ABA HISTÓRICO ---
 with aba_hist:
-    st.header("📜 Histórico de Registros")
-    if st.button("🔄 Sincronizar com Banco de Dados"):
+    st.header("📜 Histórico")
+    if st.button("🔄 Sincronizar"):
         try:
             h_cc = supabase.table("calculos_curto").select("*").execute()
-            h_ar = supabase.table("arc_flash_history").select("*").execute()
-            
-            st.subheader("Curto-Circuito")
             st.dataframe(pd.DataFrame(h_cc.data), use_container_width=True)
-            
-            st.subheader("Arco Elétrico")
-            st.dataframe(pd.DataFrame(h_ar.data), use_container_width=True)
         except Exception as e:
-            st.error(f"Erro ao carregar histórico: {e}")
+            st.error(f"Erro: {e}")
