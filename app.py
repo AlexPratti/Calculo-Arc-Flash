@@ -63,59 +63,58 @@ with st.sidebar:
     st.link_button("Banco de Capacitores", "https://c-lculobancocapacitores-tne9epqsrh64gtwaakzyax.streamlit.app", use_container_width=True)
 
 # --- 4. SISTEMA DE LOGIN ---
-if 'auth' not in st.session_state: 
-    st.session_state['auth'] = None 
+st.set_page_config(page_title="Gestão de Arco Elétrico", layout="wide")
 
-if st.session_state['auth'] is None: 
-    st.title("ༀ༁༂ Acesso ao Sistema NBR 17227") 
-    t1, t2 = st.tabs(["Entrar", "Solicitar Acesso"]) 
+if 'auth' not in st.session_state:
+    st.session_state['auth'] = None
+
+if st.session_state['auth'] is None:
+    st.title("🔐 Acesso ao Sistema NBR 17227")
+    t1, t2 = st.tabs(["Entrar", "Solicitar Acesso"])
     
     with t1:
-        u = st.text_input("E-mail") 
-        p = st.text_input("Senha", type="password") 
-        if st.button("Acessar", use_container_width=True): 
-            if u == "admin" and p == "101049app": 
-                st.session_state['auth'] = {"role": "admin", "user": "Administrador"} 
-                st.rerun() 
-            else: 
-                try: 
-                    res = supabase.table("usuarios").select("*").eq("email", u).eq("senha", p).execute() 
-                    if res.data and res.data[0]['status'] == 'ativo': 
-                        st.session_state['auth'] = {"role": "user", "user": u} 
-                        st.rerun() 
-                    else: 
-                        st.error("Acesso negado ou pendente.") 
-                except: 
-                    st.error("Erro na conexão com banco de dados.")
-    with t2:
-        st.subheader("Solicitar Novo Acesso")
-        u_novo = st.text_input("E-mail para Cadastro", key="new_u")
-        p_novo = st.text_input("Senha para Cadastro", type="password", key="new_p")
-        
-        if st.button("Enviar Solicitação", use_container_width=True):
-            if u_novo and p_novo:
-                try:
-                    # Insere o novo usuário com status 'pendente' no Supabase
-                    supabase.table("usuarios").insert({
-                        "email": u_novo, 
-                        "senha": p_novo, 
-                        "status": "pendente"
-                    }).execute()
-                    st.success("✅ Solicitação enviada! Aguarde a aprovação do administrador.")
-                except Exception as e:
-                    st.error(f"Erro ao solicitar: {e}")
+        u = st.text_input("Usuário (E-mail)")
+        p = st.text_input("Senha", type="password")
+        if st.button("Acessar"):
+            if u == "admin" and p == "101049app":
+                st.session_state['auth'] = {"role": "admin", "user": "Administrador"}
+                st.rerun()
             else:
-                st.warning("Preencha todos os campos.")
-else:
-    # --- ÁREA LOGADA (TUDO DAQUI PARA BAIXO SÓ APARECE APÓS LOGIN) ---
+                try:
+                    res = supabase.table("usuarios").select("*").eq("email", u).eq("senha", p).execute()
+                    if res.data:
+                        # CORREÇÃO: Acessando o primeiro item da lista retornada
+                        user_found = res.data[0] 
+                        
+                        if user_found['status'] == 'ativo':
+                            # TRATAMENTO DE DATA UTC
+                            data_str = user_found['data_aprovacao'].replace('Z', '+00:00')
+                            data_ap = datetime.fromisoformat(data_str).astimezone(timezone.utc)
+                            agora_utc = datetime.now(timezone.utc)
+                            
+                            if agora_utc > data_ap + timedelta(days=365):
+                                st.error("Seu acesso expirou (validade de 1 ano atingida).")
+                            else:
+                                st.session_state['auth'] = {"role": "user", "user": u}
+                                st.rerun()
+                        else:
+                            st.warning(f"Seu acesso está: {user_found['status'].upper()}. Aguarde aprovação.")
+                    else:
+                        st.error("E-mail ou senha incorretos.")
+                except Exception as e:
+                    st.error(f"Erro de conexão: {e}")
     
-    # Adicionando botão Sair na Sidebar
-    with st.sidebar:
-        st.divider()
-        st.write(f"Conectado como: **{st.session_state['auth']['user']}**")
-        if st.button("🚪 Sair do Sistema", use_container_width=True):
-            st.session_state['auth'] = None
-            st.rerun()
+    with t2:
+        ne = st.text_input("Seu E-mail para cadastro")
+        np_ = st.text_input("Crie uma Senha", type="password")
+        if st.button("Enviar Solicitação"):
+            try:
+                supabase.table("usuarios").insert({"email": ne, "senha": np_, "status": "pendente"}).execute()
+                st.success("Solicitação enviada!")
+            except:
+                st.error("Erro ao enviar solicitação.")
+    st.stop()
+
 
     # --- 5. BASE DE DADOS ---
     equip_data = {
