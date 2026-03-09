@@ -62,7 +62,7 @@ with st.sidebar:
     st.link_button("Corrente de Curto-Circuito", "https://short-circuit-calc-e5u5dmgap2uqfdtbkc3d4e.streamlit.app", use_container_width=True)
     st.link_button("Banco de Capacitores", "https://c-lculobancocapacitores-tne9epqsrh64gtwaakzyax.streamlit.app", use_container_width=True)
 
-# --- 4. SISTEMA DE LOGIN ---
+# --- 3. SISTEMA DE LOGIN ---
 st.set_page_config(page_title="Gestão de Arco Elétrico", layout="wide")
 
 if 'auth' not in st.session_state:
@@ -114,6 +114,35 @@ if st.session_state['auth'] is None:
             except:
                 st.error("Erro ao enviar solicitação.")
     st.stop()
+
+# --- 4. INTERFACE PRINCIPAL ---
+st.sidebar.write(f"Conectado: **{st.session_state['auth']['user']}**")
+if st.sidebar.button("Sair"):
+    st.session_state['auth'] = None
+    st.rerun()
+
+# --- 5. PAINEL DO ADMINISTRADOR ---
+if st.session_state['auth']['role'] == "admin":
+    with st.expander("⚙️ Painel de Controle de Usuários"):
+        try:
+            users_res = supabase.table("usuarios").select("*").execute()
+            users_list = users_res.data
+            if users_list:
+                for user in users_list:
+                    c1, c2, c3 = st.columns(3)
+                    st_icon = "🟢" if user['status'] == 'ativo' else "🟡"
+                    c1.write(f"{st_icon} **{user['email']}**")
+                    if user['status'] == 'pendente' and c2.button("Aprovar", key=user['email']):
+                        supabase.table("usuarios").update({
+                            "status": "ativo", 
+                            "data_aprovacao": datetime.now(timezone.utc).isoformat()
+                        }).eq("email", user['email']).execute()
+                        st.rerun()
+                    if c3.button("Excluir", key=f"del_{user['email']}"):
+                        supabase.table("usuarios").delete().eq("email", user['email']).execute()
+                        st.rerun()
+        except Exception as e:
+            st.error(f"Erro no painel: {e}")
 
 
     # --- 5. BASE DE DADOS ---
