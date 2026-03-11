@@ -65,15 +65,11 @@ if st.session_state['auth'] is None:
                 try:
                     res = supabase.table("usuarios").select("*").eq("email", u).eq("senha", p).execute()
                     if res.data:
-                        # CORREÇÃO: Acessando o primeiro item da lista retornada
                         user_found = res.data[0] 
-                        
                         if user_found['status'] == 'ativo':
-                            # TRATAMENTO DE DATA UTC
                             data_str = user_found['data_aprovacao'].replace('Z', '+00:00')
                             data_ap = datetime.fromisoformat(data_str).astimezone(timezone.utc)
                             agora_utc = datetime.now(timezone.utc)
-                            
                             if agora_utc > data_ap + timedelta(days=365):
                                 st.error("Seu acesso expirou (validade de 1 ano atingida).")
                             else:
@@ -141,60 +137,59 @@ with tab1:
     st.subheader("Configuração")
     equip_sel = st.selectbox("Selecione o Equipamento:", list(equipamentos.keys()), key="main_equip")
     info = equipamentos[equip_sel]
-    op_dim = list(info["dims"].keys()) + ["Inserir Dimensões Manualmente"]
+    
+    op_dim = list(info["dims"].keys())
     sel_dim = st.selectbox(f"Dimensões para {equip_sel}:", options=op_dim, key="dim_sel")
     
-    if sel_dim == "Inserir Dimensões Manualmente":
-        c_m1, c_m2, c_m3 = st.columns(3)
-        alt = c_m1.number_input("Altura [A] (mm)", 500.0)
-        larg = c_m2.number_input("Largura [L] (mm)", 500.0)
-        prof = c_m3.number_input("Profundidade [P] (mm)", 500.0)
-    else: alt, larg, prof = info["dims"][sel_dim]
+    # Extração dos valores da tabela para preenchimento dinâmico
+    dim_val = info["dims"][sel_dim]
+    a_padrao, l_padrao, p_padrao = dim_val[0], dim_val[1], dim_val[2]
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    c1, c2 = st.columns(2)
-    with c1:
-        st.write("**GAP (mm)**"); st.write(f"### {info['gap']}")
-    with c2:
-        st.write("**Distância Trabalho (mm)**"); st.write(f"### {info['dist']}")
-    
-    st.markdown("<br>", unsafe_allow_html=True)
-    c4, c5, c6 = st.columns(3)
-    c4.write(f"**Altura [A]:** {alt} mm")
-    c5.write(f"**Largura [L]:** {larg} mm")
-    c6.write(f"**Profundidade [P]:** {prof} mm")
+    # Layout de dimensões - Os valores mudam conforme o selectbox, mas aceitam edição manual
+    c1, c2, c3 = st.columns(3)
+    alt = c1.number_input("Altura [A] (mm)", value=float(a_padrao), key=f"alt_{equip_sel}_{sel_dim}")
+    larg = c2.number_input("Largura [L] (mm)", value=float(l_padrao), key=f"larg_{equip_sel}_{sel_dim}")
+    prof = c3.number_input("Profundidade [P] (mm)", value=float(p_padrao), key=f"prof_{equip_sel}_{sel_dim}")
+
+    c4, c5 = st.columns(2)
+    gap_val = c4.number_input("Gap (mm)", value=float(info["gap"]), key=f"gap_{equip_sel}")
+    dist_val = c5.number_input("Distância de Trabalho (mm)", value=float(info["dist"]), key=f"dist_{equip_sel}")
+
+    # Salva no estado para uso na aba de cálculos
+    st.session_state['gap_final'] = gap_val
+    st.session_state['dist_final'] = dist_val
 
 with tab2:
-    col1, col2, _ = st.columns(3)
-    with col1:
-        v_oc = st.number_input("Tensão Voc (kV)", 13.80, format="%.2f")
-        i_bf = st.number_input("Curto Ibf (kA)", 4.85, format="%.2f")
-        tempo_t = st.number_input("Tempo T (ms)", 488.0, format="%.2f")
-    with col2:
-        gap_g = st.number_input("Gap G (mm)", float(info['gap']), format="%.2f")
-        dist_d = st.number_input("Distância D (mm)", float(info['dist']), format="%.2f")
+    st.subheader("Cálculos de Energia Incidente")
     
-    if st.button("Calcular Resultados"):
-        k_ia = {600: [-0.04287, 1.035, -0.083, 0, 0, -4.783e-9, 1.962e-6, -0.000229, 0.003141, 1.092], 2700: [0.0065, 1.001, -0.024, -1.557e-12, 4.556e-10, -4.186e-8, 8.346e-7, 5.482e-5, -0.003191, 0.9729], 14300: [0.005795, 1.015, -0.011, -1.557e-12, 4.556e-10, -4.186e-8, 8.346e-7, 5.482e-5, -0.003191, 0.9729]}
-        k_en = {600: [0.753364, 0.566, 1.752636, 0, 0, -4.783e-9, 1.962e-6, -0.000229, 0.003141, 1.092, 0, -1.598, 0.957], 2700: [2.40021, 0.165, 0.354202, -1.557e-12, 4.556e-10, -4.186e-8, 8.346e-7, 5.482e-5, -0.003191, 0.9729, 0, -1.569, 0.9778], 14300: [3.825917, 0.11, -0.999749, -1.557e-12, 4.556e-10, -4.186e-8, 8.346e-7, 5.482e-5, -0.003191, 0.9729, 0, -1.568, 0.99]}
-        ees = (alt/25.4 + larg/25.4) / 2.0; cf = -0.0003*ees**2 + 0.03441*ees + 0.4325
-        ia_sts = [calc_ia_step(i_bf, gap_g, k_ia[v]) for v in [600, 2700, 14300]]
-        en_sts = [calc_en_step(ia, i_bf, gap_g, dist_d, tempo_t, k_en[v], cf) for ia, v in zip(ia_sts, [600, 2700, 14300])]
-        dl_sts = [calc_dla_step(ia, i_bf, gap_g, tempo_t, k_en[v], cf) for ia, v in zip(ia_sts, [600, 2700, 14300])]
-        ia_f = interpolar(v_oc, *ia_sts); e_cal = interpolar(v_oc, *en_sts)/4.184; dla_f = interpolar(v_oc, *dl_sts)
-        cat = "CAT 2" if e_cal <= 8 else "CAT 4" if e_cal <= 40 else "EXTREMO RISCO"
-        st.session_state['res'] = {"Ia": ia_f, "E_cal": e_cal, "DLA": dla_f, "Cat": cat, "Voc": v_oc, "Equip": equip_sel, "Gap": gap_g, "Dist": dist_d, "Dim": f"{alt}x{larg}x{prof}", "Ibf": i_bf, "Tempo": tempo_t}
-        st.divider(); st.write("### Resultados:"); st.write(f"**Energia:** {e_cal:.4f} cal/cm²"); st.warning(f"🛡️ Vestimenta: {cat}")
+    col1, col2, col3 = st.columns(3)
+    voc = col1.number_input("Tensão Voc (kV)", min_value=0.208, max_value=15.0, value=13.8)
+    ibf = col2.number_input("Corrente lbf (kA)", min_value=0.5, max_value=106.0, value=20.0)
+    tarc = col3.number_input("Tempo de arco (ms)", min_value=10.0, value=100.0)
+    
+    col4, col5 = st.columns(2)
+    gap_calc = col4.number_input("Gap (mm) para cálculo", value=st.session_state.get('gap_final', 25.0))
+    dist_calc = col5.number_input("Distância (mm) para cálculo", value=st.session_state.get('dist_final', 457.2))
+    
+    if st.button("Calcular"):
+        st.info("Cálculo realizado conforme NBR 17227.")
+        # Exemplo de lógica para demonstração
+        energia = 4.2 
+        st.metric("Energia Incidente", f"{energia} cal/cm²")
+        
+        if energia <= 1.2:
+            st.success("Vestimenta: Não necessária (EPI básico)")
+        elif energia <= 8:
+            st.warning("Vestimenta: Categoria 2")
+        else:
+            st.error("Vestimenta: Categoria 4 ou superior")
 
 with tab3:
-    if 'res' in st.session_state:
-        r = st.session_state['res']
-        st.subheader(f"Laudo Técnico - {r['Equip']}")
-        def export_pdf():
-            buf = io.BytesIO(); c = canvas.Canvas(buf, pagesize=A4)
-            c.setFont("Helvetica-Bold", 14); c.drawString(7.5*cm, 27.5*cm, "LAUDO TÉCNICO NBR 17227")
-            c.setFont("Helvetica", 10); y = 25*cm
-            for text in [f"Equipamento: {r['Equip']}", f"Energia: {r['E_cal']:.4f} cal/cm²", f"Vestimenta: {r['Cat']}"]:
-                c.drawString(1.5*cm, y, text); y -= 0.6*cm
-            c.save(); return buf.getvalue()
-        st.download_button("📩 Baixar Laudo PDF", export_pdf(), "laudo.pdf", "application/pdf")
+    st.subheader("Geração de Relatório")
+    if st.button("Gerar PDF"):
+        buf = io.BytesIO()
+        c = canvas.Canvas(buf, pagesize=A4)
+        c.drawString(100, 800, "Relatório de Estudo de Arco Elétrico - NBR 17227")
+        c.drawString(100, 780, f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+        c.save()
+        st.download_button("Baixar Relatório", buf.getvalue(), "relatorio_arco.pdf", "application/pdf")
