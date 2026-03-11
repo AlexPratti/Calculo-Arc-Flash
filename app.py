@@ -23,23 +23,26 @@ except Exception as e:
 # --- 1. CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="NBR 17227 - Relatório Técnico", layout="wide")
 
-# Dados de Conexão Supabase
+# --- Inicialização do Supabase ---
+from supabase import create_client, Client
+
 URL_SUPABASE = "https://lfgqxphittdatzknwkqw.supabase.co" 
 KEY_SUPABASE = "sb_publishable_zLiarara0IVVcwQm6oR2IQ_Sb0YOWTe" 
 
-
-# Inicializa a conexão com Supabase
+# Verifica se a conexão já foi criada na sessão
 if "supabase" not in st.session_state:
     st.session_state.supabase = create_client(URL_SUPABASE, KEY_SUPABASE)
 
+# Inicializa a variável supabase
 supabase = st.session_state.supabase
 
-# Testa a conexão com Supabase
+# --- Teste de Conexão ---
 try:
     res = supabase.table("usuarios").select("*").execute()
     st.success("Conexão com o Supabase bem-sucedida!")
 except Exception as e:
     st.error(f"Erro ao conectar ao Supabase: {e}")
+
 
 # --- 2. FUNÇÕES TÉCNICAS (NBR 17227:2025) ---
 def calc_ia_step(ibf, g, k):
