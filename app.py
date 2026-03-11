@@ -12,6 +12,14 @@ from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER, TA_LEFT
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether
 from reportlab.pdfgen import canvas
 
+
+try:
+    res = supabase.table("usuarios").select("*").execute()
+    st.success("Conexão com o Supabase bem-sucedida!")
+except Exception as e:
+    st.error(f"Erro ao conectar ao Supabase: {e}")
+
+
 # --- 1. CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="NBR 17227 - Relatório Técnico", layout="wide")
 
